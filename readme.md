@@ -20,6 +20,8 @@ See `./amt -h` for the details.
 Config example:
 
 ```toml
+rootdir = '/srv/http/archlinux'
+
 [mirror.de]
 enabled = false
 arch = 'aarch64'

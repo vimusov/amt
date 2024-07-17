@@ -14,6 +14,7 @@ type netMirror struct {
 }
 
 type netConfig struct {
+	RootDir string               `toml:"rootdir"`
 	Mirrors map[string]netMirror `toml:"mirror"`
 }
 

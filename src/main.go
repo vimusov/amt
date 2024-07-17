@@ -98,10 +98,13 @@ func syncLocalMirror() error {
 	}
 
 	if rootDir == "" {
-		var dirErr error
-		rootDir, dirErr = os.Getwd()
-		if dirErr != nil {
-			return dirErr
+		rootDir = cfg.RootDir
+		if rootDir == "" {
+			var dirErr error
+			rootDir, dirErr = os.Getwd()
+			if dirErr != nil {
+				return dirErr
+			}
 		}
 	}
 
@@ -127,6 +130,7 @@ func syncLocalMirror() error {
 		return fmt.Errorf("no enabled mirrors found in config '%s'", cfgPath)
 	}
 
+	defPrinter.info("Using '%s' as a root directory.", rootDir)
 	for midx, name := range enabledNames {
 		mirror := cfg.Mirrors[name]
 		for sidx, section := range mirror.Sections {
