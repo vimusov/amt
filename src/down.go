@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"time"
 )
 
 const (
@@ -25,14 +24,13 @@ func getFile(url, path string, idx, amount uint) error {
 		}
 	}()
 
-	client := &http.Client{Timeout: 2 * time.Minute}
 	request, reqErr := http.NewRequest("GET", url, nil)
 	if reqErr != nil {
 		return reqErr
 	}
 	request.Header.Add("User-Agent", userAgent)
 
-	respose, respErr := client.Do(request)
+	respose, respErr := http.DefaultClient.Do(request)
 	if respErr != nil {
 		return respErr
 	}
@@ -74,6 +72,7 @@ func getFile(url, path string, idx, amount uint) error {
 }
 
 func downloadFiles(baseUrl, sectionDir string, names []string) error {
+	var lastErr error = nil
 	amount := uint(len(names))
 	for i, name := range names {
 		path := filepath.Join(sectionDir, name)
@@ -90,9 +89,9 @@ func downloadFiles(baseUrl, sectionDir string, names []string) error {
 			}
 			downErr = getFile(url, path, idx, amount)
 			if downErr != nil {
-				return downErr
+				lastErr = downErr
 			}
 		}
 	}
-	return nil
+	return lastErr
 }
