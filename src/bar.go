@@ -110,6 +110,6 @@ func (pb *progressBar) end() {
 	if defPrinter.isVerbose() {
 		defPrinter.eol()
 	} else {
-		defPrinter.line("[%d/%d] %s: downloaded.", pb.idx, pb.amount, pb.fileName)
+		defPrinter.line("[%d/%d] %s: done.", pb.idx, pb.amount, pb.fileName)
 	}
 }
