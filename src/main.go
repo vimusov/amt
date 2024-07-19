@@ -43,9 +43,8 @@ func syncSection(uri, arch, sectionName, rootDir string) error {
 		}
 		defPrinter.info("Updating packages...")
 		names := namesFromDescs(needUpdPkgs)
-		if downErr = downloadFiles(baseUrl, sectionDir, names); downErr != nil {
-			return nil
-		}
+		// WARN: Ignore error here, try to download as many packages as possible.
+		downloadFiles(baseUrl, sectionDir, names)
 	}
 	if !updatedOk {
 		return fmt.Errorf("unable to update packages, all attempts failed")
