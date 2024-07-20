@@ -3,11 +3,31 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
 	"time"
 )
+
+func truncFile(fp *os.File, size int64) error {
+	size -= 1
+	offset, seekErr := fp.Seek(size, io.SeekStart)
+	if seekErr != nil {
+		return seekErr
+	}
+	if offset != size {
+		return fmt.Errorf("unable to seek to end of file")
+	}
+	writeSize, writeErr := fp.Write([]byte{0})
+	if writeErr != nil {
+		return writeErr
+	}
+	if writeSize != 1 {
+		return fmt.Errorf("unable write one byte")
+	}
+	return nil
+}
 
 func rmFile(path string) error {
 	if rmErr := os.Remove(path); rmErr != nil {

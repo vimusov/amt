@@ -59,7 +59,6 @@ func (pb *progressBar) draw(curPos int64) {
 	curPercent := int((curSize * 100) / totalSize)
 	curTime := time.Now().Unix() - pb.baseTime
 	if prevPercent == 0 && startSize == 0 && startTime == 0 {
-		prevPercent = -1
 		startSize = curSize
 		startTime = curTime
 	}
