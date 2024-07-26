@@ -70,7 +70,66 @@ func downPart(ek *errKeeper, url string, fp *os.File, start, end int64, report c
 	}
 }
 
-func getFile(url, path string, threads, idx, amount uint) error {
+func getSingle(url, path string, idx, amount uint) error {
+	request, reqErr := http.NewRequest("GET", url, nil)
+	if reqErr != nil {
+		return reqErr
+	}
+	request.Header.Set("User-Agent", userAgent)
+
+	client := http.Client{}
+	respose, respErr := client.Do(request)
+	if respErr != nil {
+		return respErr
+	}
+	defer func() {
+		if closeErr := respose.Body.Close(); closeErr != nil {
+			defPrinter.error("Unable to close response body: %s.", closeErr)
+		}
+	}()
+
+	fp, openErr := os.Create(path)
+	if openErr != nil {
+		return openErr
+	}
+	defer func() {
+		if closeErr := fp.Close(); closeErr != nil {
+			defPrinter.error("Unable to close pkg file: %s.", closeErr)
+		}
+	}()
+
+	totalSize := respose.ContentLength
+	if totalSize < 1 {
+		return fmt.Errorf("download too small")
+	}
+
+	buf := make([]byte, netChunkSize)
+	pb := newProgressBar(idx, amount, filepath.Base(path), totalSize)
+	pb.begin()
+	curSize := int64(0)
+	for {
+		readSize, readErr := respose.Body.Read(buf)
+		if readErr != nil && readErr != io.EOF {
+			return readErr
+		}
+		if readSize == 0 {
+			break
+		}
+		writeSize, writeError := fp.Write(buf[:readSize])
+		if writeError != nil {
+			return writeError
+		}
+		if writeSize != readSize {
+			return fmt.Errorf("read/write size mismatch: %d/%d", readSize, writeSize)
+		}
+		curSize += int64(writeSize)
+		pb.draw(curSize)
+	}
+	pb.end()
+	return nil
+}
+
+func getThreaded(url, path string, threads, idx, amount uint) error {
 	request, reqErr := http.NewRequest("HEAD", url, nil)
 	if reqErr != nil {
 		return reqErr
@@ -152,21 +211,27 @@ func downloadFiles(baseUrl, sectionDir string, names []string, threads uint) err
 	amount := uint(len(names))
 	for i, name := range names {
 		path := filepath.Join(sectionDir, name)
+		attemptsLeft := 2
+	repeatDown:
+		if attemptsLeft == 0 {
+			continue
+		}
 		if rmErr := rmFile(path); rmErr != nil {
 			return rmErr
 		}
 		idx := uint(i + 1)
 		url := fmt.Sprintf("%s/%s", baseUrl, name)
-		if downErr := getFile(url, path, threads, idx, amount); downErr != nil {
+		var downErr error = nil
+		if threads == 1 {
+			downErr = getSingle(url, path, idx, amount)
+		} else {
+			downErr = getThreaded(url, path, threads, idx, amount)
+		}
+		if downErr != nil {
 			defPrinter.error("Unable to download file: %s.", downErr)
-			// Second attempt.
-			if rmErr := rmFile(path); rmErr != nil {
-				return rmErr
-			}
-			downErr = getFile(url, path, threads, idx, amount)
-			if downErr != nil {
-				lastErr = downErr
-			}
+			lastErr = downErr
+			attemptsLeft -= 1
+			goto repeatDown
 		}
 	}
 	return lastErr

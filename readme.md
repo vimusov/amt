@@ -27,12 +27,14 @@ enabled = false
 arch = 'aarch64'
 uri = 'https://mirrors.dotsrc.org/archlinuxarm/%arch%/%section%'
 sections = ['core', 'extra', 'community', 'alarm']
+threads = 1
 
 [mirror.ge]
 enabled = true
 arch = 'x86_64'
 uri = 'https://arch.grena.ge/%section%/os/%arch%'
 sections = ['core', 'extra', 'community', 'multilib']
+threads = 4
 ```
 
 # License

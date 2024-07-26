@@ -58,7 +58,6 @@ func syncSection(uri, arch, sectionName, rootDir string, threads uint) error {
 }
 
 func syncLocalMirror() error {
-	var threads uint
 	var beQuiet bool
 	var cfgPath string
 	var rootDir string
@@ -70,12 +69,7 @@ func syncLocalMirror() error {
 	flag.StringVar(&rootDir, "rootdir", "", "root directory (read from config, use current if not set)")
 	flag.StringVar(&mirrorNames, "mirrors", "", "mirrors (read from config, use enabled if set)")
 	flag.BoolVar(&listMirrors, "list", false, "list configured mirrors and quit")
-	flag.UintVar(&threads, "threads", 4, "number of download threads to use")
 	flag.Parse()
-
-	if threads < 1 || threads > 16 {
-		return fmt.Errorf("invalid number of threads, must be between 1 and 16")
-	}
 
 	if beQuiet {
 		defPrinter.setQuiet()
@@ -140,10 +134,15 @@ func syncLocalMirror() error {
 	for midx, name := range enabledNames {
 		mirror := cfg.Mirrors[name]
 		for sidx, section := range mirror.Sections {
+			threads := mirror.Threads
+			if threads == 0 || threads > 8 {
+				defPrinter.error("Wrong amount of threads %d, reset to 1.", threads)
+				threads = 1
+			}
 			defPrinter.info(
-				"Syncing section '%s' (%d/%d), mirror '%s'@%s (%d/%d)...",
+				"Syncing section '%s' (%d/%d), mirror '%s'@%s (th=%d) (%d/%d)...",
 				section, sidx+1, len(mirror.Sections),
-				name, mirror.Arch, midx+1, enabledCount,
+				name, mirror.Arch, threads, midx+1, enabledCount,
 			)
 			if syncErr := syncSection(mirror.Uri, mirror.Arch, section, rootDir, threads); syncErr != nil {
 				return syncErr

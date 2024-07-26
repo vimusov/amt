@@ -9,6 +9,8 @@ import (
 	"strings"
 )
 
+const sumChunkSize = 64 * 1048576
+
 type pkgDesc struct {
 	name   string
 	chksum string
@@ -33,8 +35,9 @@ func calcChkSum(path string) (string, error) {
 			panic(fmt.Sprintf("Unable calc chksum: %s.", path))
 		}
 	}()
+	buf := make([]byte, sumChunkSize)
 	hasher := sha256.New()
-	copySize, copyErr := io.Copy(hasher, pkgFile)
+	copySize, copyErr := io.CopyBuffer(hasher, pkgFile, buf)
 	if copyErr != nil {
 		return "", copyErr
 	}
