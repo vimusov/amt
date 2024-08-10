@@ -36,11 +36,12 @@ func humanTime(etaTime float64) string {
 
 func newProgressBar(idx, amount uint, fileName string, totalSize int64) *progressBar {
 	return &progressBar{
-		idx:       idx,
-		amount:    amount,
-		fileName:  fileName,
-		totalSize: float64(totalSize / 1024.0),
-		baseTime:  time.Now().Unix(),
+		idx:         idx,
+		amount:      amount,
+		fileName:    fileName,
+		totalSize:   float64(totalSize) / 1024.0,
+		baseTime:    time.Now().Unix(),
+		prevPercent: -1,
 	}
 }
 
@@ -55,8 +56,11 @@ func (pb *progressBar) draw(curPos int64) {
 	startSize := pb.startSize
 	prevPercent := pb.prevPercent
 	startTime := pb.startTime
-	curSize := float64(curPos / 1024.0)
-	curPercent := int((curSize * 100) / totalSize)
+	curSize := float64(curPos) / 1024.0
+	curPercent := int(curSize * 100 / totalSize)
+	if curPercent < 0 {
+		curPercent = 0
+	}
 	curTime := time.Now().Unix() - pb.baseTime
 	if prevPercent == 0 && startSize == 0 && startTime == 0 {
 		startSize = curSize
