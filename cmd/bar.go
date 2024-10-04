@@ -99,9 +99,12 @@ func (pb *progressBar) draw(curPos int64) {
 			humanTime(etaTime),
 		)
 		curLineLen := len(status)
-		maxLineLen := pb.maxLineLen
 		pb.maxLineLen = max(pb.maxLineLen, curLineLen)
-		defPrinter.progress(status + strings.Repeat(" ", maxLineLen-curLineLen))
+		fillingLen := pb.maxLineLen - curLineLen
+		if fillingLen < 0 {
+			fillingLen = 0
+		}
+		defPrinter.progress(status + strings.Repeat(" ", fillingLen))
 	}
 	pb.prevPercent = curPercent
 	pb.startSize = startSize
@@ -114,5 +117,9 @@ func (pb *progressBar) end() {
 	if fillingLen < 0 {
 		fillingLen = 0
 	}
-	defPrinter.line(status + strings.Repeat(" ", fillingLen))
+	prefix := ""
+	if defPrinter.isVerbose() {
+		prefix = "\r"
+	}
+	defPrinter.line(prefix + status + strings.Repeat(" ", fillingLen))
 }
