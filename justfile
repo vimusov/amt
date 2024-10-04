@@ -3,7 +3,7 @@ target := "amt"
 default: build
 
 build:
-    cd src && go build -o ../{{target}}
+    cd amt && go build -o ../{{target}}
 
 clean:
     rm -f {{target}}

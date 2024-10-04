@@ -47,7 +47,9 @@ func newProgressBar(idx, amount uint, fileName string, totalSize int64) *progres
 
 func (pb *progressBar) begin() {
 	if !defPrinter.isVerbose() {
-		defPrinter.line("[%d/%d] %s: downloading...", pb.idx, pb.amount, pb.fileName)
+		status := fmt.Sprintf("[%d/%d] %s: downloading...", pb.idx, pb.amount, pb.fileName)
+		pb.maxLineLen = max(pb.maxLineLen, len(status))
+		defPrinter.line(status)
 	}
 }
 
@@ -98,10 +100,7 @@ func (pb *progressBar) draw(curPos int64) {
 		)
 		curLineLen := len(status)
 		maxLineLen := pb.maxLineLen
-		if curLineLen > maxLineLen {
-			maxLineLen = curLineLen
-		}
-		pb.maxLineLen = maxLineLen
+		pb.maxLineLen = max(pb.maxLineLen, curLineLen)
 		defPrinter.progress(status + strings.Repeat(" ", maxLineLen-curLineLen))
 	}
 	pb.prevPercent = curPercent
@@ -110,9 +109,10 @@ func (pb *progressBar) draw(curPos int64) {
 }
 
 func (pb *progressBar) end() {
-	if defPrinter.isVerbose() {
-		defPrinter.eol()
-	} else {
-		defPrinter.line("[%d/%d] %s: done.", pb.idx, pb.amount, pb.fileName)
+	status := fmt.Sprintf("[%d/%d] %s: done.", pb.idx, pb.amount, pb.fileName)
+	fillingLen := pb.maxLineLen - len(status)
+	if fillingLen < 0 {
+		fillingLen = 0
 	}
+	defPrinter.line(status + strings.Repeat(" ", fillingLen))
 }
