@@ -97,6 +97,13 @@ func syncLocalMirror() error {
 		return nil
 	}
 
+	if lockErr := lockSelf(); lockErr != nil {
+		if isAlreadyLocked(lockErr) {
+			return fmt.Errorf("one instance is already running")
+		}
+		return lockErr
+	}
+
 	if rootDir == "" {
 		rootDir = cfg.RootDir
 		if rootDir == "" {
