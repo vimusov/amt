@@ -11,7 +11,6 @@ type netMirror struct {
 	Uri      string   `toml:"uri"`
 	Arch     string   `toml:"arch"`
 	Sections []string `toml:"sections"`
-	Threads  uint     `toml:"threads"`
 }
 
 type netConfig struct {

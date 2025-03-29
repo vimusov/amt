@@ -42,7 +42,7 @@ func loadPkgDesc(desc string) (pkgDesc, error) {
 }
 
 func loadDescFromDB(path string) ([]pkgDesc, error) {
-	defPrinter.info("Loading package descriptions from '%s'...", filepath.Base(path))
+	defPrinter.putInfo("Loading package descriptions from '%s'...", filepath.Base(path))
 
 	dbFile, openErr := os.Open(path)
 	if openErr != nil {
@@ -50,7 +50,7 @@ func loadDescFromDB(path string) ([]pkgDesc, error) {
 	}
 	defer func() {
 		if closeErr := dbFile.Close(); closeErr != nil {
-			defPrinter.error("Unable close DB file: %s.", closeErr)
+			defPrinter.putError("Unable close DB file: %s.", closeErr)
 		}
 	}()
 
@@ -60,7 +60,7 @@ func loadDescFromDB(path string) ([]pkgDesc, error) {
 	}
 	defer func() {
 		if closeErr := gzReader.Close(); closeErr != nil {
-			defPrinter.error("Unable to close gzip reader: %s.", closeErr)
+			defPrinter.putError("Unable to close gzip reader: %s.", closeErr)
 		}
 	}()
 

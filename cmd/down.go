@@ -1,108 +1,53 @@
 package main
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
-	"sync"
 )
 
 const (
-	netChunkSize    = 65536
-	minThreadedSize = 10485760
-	rangeUnits      = "bytes"
-	userAgent       = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+	netChunkSize = 65536
+	userAgent    = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 )
 
-func downPart(ek *errKeeper, url string, fp *os.File, start, end int64, report chan<- int64) {
-	defer ek.done()
-
+func getFile(url, path string, idx, amount uint) (string, error) {
 	request, reqErr := http.NewRequest("GET", url, nil)
 	if reqErr != nil {
-		ek.set(reqErr)
-		return
-	}
-	var rangeVal string
-	if end == -1 {
-		rangeVal = fmt.Sprintf("%s=%d-", rangeUnits, start)
-	} else {
-		rangeVal = fmt.Sprintf("%s=%d-%d", rangeUnits, start, end-1)
-	}
-	request.Header.Set("Range", rangeVal)
-	request.Header.Set("User-Agent", userAgent)
-
-	client := http.Client{}
-	respose, respErr := client.Do(request)
-	if respErr != nil {
-		ek.set(respErr)
-		return
-	}
-	defer func() {
-		if closeErr := respose.Body.Close(); closeErr != nil {
-			defPrinter.error("Unable to close response body: %s.", closeErr)
-		}
-	}()
-
-	buf := make([]byte, netChunkSize)
-	off := start
-	for {
-		readSize, readErr := respose.Body.Read(buf)
-		if readErr != nil && readErr != io.EOF {
-			ek.set(readErr)
-			return
-		}
-		if readSize == 0 {
-			break
-		}
-		writeSize, writeError := fp.WriteAt(buf[:readSize], off)
-		if writeError != nil {
-			ek.set(writeError)
-			return
-		}
-		if writeSize != readSize {
-			ek.set(fmt.Errorf("read/write size mismatch: %d/%d", readSize, writeSize))
-			return
-		}
-		off += int64(writeSize)
-		report <- int64(readSize)
-	}
-}
-
-func getSingle(url, path string, idx, amount uint) error {
-	request, reqErr := http.NewRequest("GET", url, nil)
-	if reqErr != nil {
-		return reqErr
+		return "", reqErr
 	}
 	request.Header.Set("User-Agent", userAgent)
 
 	client := http.Client{}
 	respose, respErr := client.Do(request)
 	if respErr != nil {
-		return respErr
+		return "", respErr
 	}
 	defer func() {
 		if closeErr := respose.Body.Close(); closeErr != nil {
-			defPrinter.error("Unable to close response body: %s.", closeErr)
+			defPrinter.putError("Unable to close response body: %s.", closeErr)
 		}
 	}()
 
 	fp, openErr := os.Create(path)
 	if openErr != nil {
-		return openErr
+		return "", openErr
 	}
 	defer func() {
 		if closeErr := fp.Close(); closeErr != nil {
-			defPrinter.error("Unable to close pkg file: %s.", closeErr)
+			defPrinter.putError("Unable to close pkg file: %s.", closeErr)
 		}
 	}()
 
 	totalSize := respose.ContentLength
 	if totalSize < 1 {
-		return fmt.Errorf("download too small")
+		return "", fmt.Errorf("download too small")
 	}
 
+	hasher := sha256.New()
 	buf := make([]byte, netChunkSize)
 	pb := newProgressBar(idx, amount, filepath.Base(path), totalSize)
 	pb.begin()
@@ -110,129 +55,74 @@ func getSingle(url, path string, idx, amount uint) error {
 	for {
 		readSize, readErr := respose.Body.Read(buf)
 		if readErr != nil && readErr != io.EOF {
-			return readErr
+			return "", readErr
 		}
 		if readSize == 0 {
 			break
 		}
 		writeSize, writeError := fp.Write(buf[:readSize])
 		if writeError != nil {
-			return writeError
+			return "", writeError
 		}
 		if writeSize != readSize {
-			return fmt.Errorf("read/write size mismatch: %d/%d", readSize, writeSize)
+			return "", fmt.Errorf("read/write size mismatch: %d/%d", readSize, writeSize)
 		}
+		_, _ = hasher.Write(buf[:readSize])
 		curSize += int64(writeSize)
 		pb.draw(curSize)
 	}
 	pb.end()
-	return nil
+	return fmt.Sprintf("%x", hasher.Sum(nil)), nil
 }
 
-func getThreaded(url, path string, threads, idx, amount uint) error {
-	request, reqErr := http.NewRequest("HEAD", url, nil)
-	if reqErr != nil {
-		return reqErr
-	}
-	request.Header.Add("User-Agent", userAgent)
-
-	client := http.Client{}
-	respose, respErr := client.Do(request)
-	if respErr != nil {
-		return respErr
-	}
-	if closeErr := respose.Body.Close(); closeErr != nil {
-		defPrinter.error("Unable to close response body: %s.", closeErr)
-	}
-
-	totalSize := respose.ContentLength
-	if totalSize < 1 {
-		return fmt.Errorf("download too small")
-	}
-	if respose.Header.Get("Accept-Ranges") != rangeUnits {
-		return fmt.Errorf("server not support Range header")
-	}
-	if totalSize <= minThreadedSize {
-		threads = 1 // Limit threads to one for small files.
-	}
-
-	fp, openErr := os.Create(path)
-	if openErr != nil {
-		return openErr
-	}
-	defer func() {
-		if closeErr := fp.Close(); closeErr != nil {
-			defPrinter.error("Unable to close pkg file: %s.", closeErr)
-		}
-	}()
-	if truncErr := truncFile(fp, totalSize); truncErr != nil {
-		return truncErr
-	}
-
-	report := make(chan int64, 4096)
-	errKeep := newErrKeeper(int(threads))
-
-	partSize := totalSize / int64(threads)
-	rangeStart := int64(0)
-	rangeEnd := partSize
-	for i := uint(0); i < threads-1; i++ {
-		go downPart(errKeep, url, fp, rangeStart, rangeEnd, report)
-		rangeStart += partSize
-		rangeEnd += partSize
-	}
-	go downPart(errKeep, url, fp, rangeStart, -1, report)
-
-	barWg := sync.WaitGroup{}
-	barWg.Add(1)
-	go func() {
-		defer barWg.Done()
-		pb := newProgressBar(idx, amount, filepath.Base(path), totalSize)
-		pb.begin()
-		curSize := int64(0)
-		for readSize := range report {
-			curSize += readSize
-			pb.draw(curSize)
-		}
-		pb.end()
-	}()
-
-	downErr := errKeep.get()
-	close(report)
-	barWg.Wait()
-
-	if syncErr := fp.Sync(); syncErr != nil {
-		return syncErr
-	}
-	return downErr
-}
-
-func downloadFiles(baseUrl, sectionDir string, names []string, threads uint) error {
-	var lastErr error = nil
+func downloadBases(baseUrl, sectionDir string, names []string) error {
 	amount := uint(len(names))
 	for i, name := range names {
 		path := filepath.Join(sectionDir, name)
-		attemptsLeft := 2
-	repeatDown:
-		if attemptsLeft == 0 {
-			continue
-		}
 		if rmErr := rmFile(path); rmErr != nil {
 			return rmErr
 		}
-		idx := uint(i + 1)
 		url := fmt.Sprintf("%s/%s", baseUrl, name)
-		var downErr error = nil
-		if threads == 1 {
-			downErr = getSingle(url, path, idx, amount)
-		} else {
-			downErr = getThreaded(url, path, threads, idx, amount)
-		}
-		if downErr != nil {
-			defPrinter.error("Unable to download file: %s.", downErr)
-			lastErr = downErr
-			attemptsLeft -= 1
-			goto repeatDown
+		if _, downErr := getFile(url, path, uint(i+1), amount); downErr != nil {
+			defPrinter.putError("Unable to download file: %s.", downErr)
+			return downErr
 		}
 	}
-	return lastErr
+	return nil
+}
+
+func downloadPkgs(baseUrl, sectionDir string, pkgs []pkgDesc) ([]pkgDesc, error) {
+	var broken []pkgDesc
+	amount := uint(len(pkgs))
+	for i, pkg := range pkgs {
+		name := pkg.name
+		idx := uint(i + 1)
+		url := fmt.Sprintf("%s/%s", baseUrl, name)
+		path := filepath.Join(sectionDir, name)
+		wrongSum := true
+		downFailed := true
+		for attemptsLeft := 2; attemptsLeft > 0; attemptsLeft-- {
+			if rmErr := rmFile(path); rmErr != nil {
+				return nil, rmErr
+			}
+			realSum, downErr := getFile(url, path, idx, amount)
+			if downErr != nil {
+				defPrinter.putError("Unable to download file '%s': %s.", name, downErr)
+				downFailed = true
+				continue
+			}
+			downFailed = false
+			if realSum != pkg.chksum {
+				defPrinter.putError("Checksum mismatch: %s vs %s.", realSum, pkg.chksum)
+				wrongSum = true
+				continue
+			}
+			wrongSum = false
+			break
+		}
+		if downFailed || wrongSum {
+			broken = append(broken, pkg)
+		}
+	}
+	return broken, nil
 }

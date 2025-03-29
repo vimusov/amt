@@ -49,7 +49,7 @@ func (pb *progressBar) begin() {
 	if !defPrinter.isVerbose() {
 		status := fmt.Sprintf("[%d/%d] %s: downloading...", pb.idx, pb.amount, pb.fileName)
 		pb.maxLineLen = max(pb.maxLineLen, len(status))
-		defPrinter.line(status)
+		defPrinter.putLine(status)
 	}
 }
 
@@ -121,5 +121,5 @@ func (pb *progressBar) end() {
 	if defPrinter.isVerbose() {
 		prefix = "\r"
 	}
-	defPrinter.line(prefix + status + strings.Repeat(" ", fillingLen))
+	defPrinter.putLine(prefix + status + strings.Repeat(" ", fillingLen))
 }

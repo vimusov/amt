@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-func syncSection(uri, arch, sectionName, rootDir string, threads uint) error {
+func syncSection(uri, arch, sectionName, rootDir string) error {
 	sectionDir := filepath.Join(rootDir, arch, sectionName)
 	if mkdirErr := os.MkdirAll(sectionDir, 0755); mkdirErr != nil {
 		return mkdirErr
@@ -22,7 +22,7 @@ func syncSection(uri, arch, sectionName, rootDir string, threads uint) error {
 	baseUrl := formatUrl(uri, arch, sectionName)
 
 	var downErr error
-	if downErr = downloadFiles(baseUrl, sectionDir, dbFiles, threads); downErr != nil {
+	if downErr = downloadBases(baseUrl, sectionDir, dbFiles); downErr != nil {
 		return downErr
 	}
 
@@ -31,24 +31,27 @@ func syncSection(uri, arch, sectionName, rootDir string, threads uint) error {
 		return loadErr
 	}
 
+	needUpdPkgs, checkErr := getPkgsToUpdate(sectionDir, allPkgs)
+	if checkErr != nil {
+		return checkErr
+	}
+
 	updatedOk := false
 	for attempt := 1; attempt <= 2; attempt++ {
-		needUpdPkgs, checkErr := getPkgsToUpdate(sectionDir, allPkgs)
-		if checkErr != nil {
-			return checkErr
-		}
 		if len(needUpdPkgs) == 0 {
 			updatedOk = true
 			break
 		}
-		defPrinter.info("Updating packages...")
-		names := namesFromDescs(needUpdPkgs)
-		if downErr = downloadFiles(baseUrl, sectionDir, names, threads); downErr != nil {
-			return downErr
+		defPrinter.putInfo("Updating packages...")
+		stillFailed, updErr := downloadPkgs(baseUrl, sectionDir, needUpdPkgs)
+		if updErr != nil {
+			return updErr
 		}
+		needUpdPkgs = stillFailed
 	}
+
 	if !updatedOk {
-		return fmt.Errorf("unable to update packages, all attempts failed")
+		return fmt.Errorf("unable to update packages in '%s', all attempts failed", sectionName)
 	}
 
 	if rmErr := removeRedundantFiles(sectionDir, sectionName, allPkgs); rmErr != nil {
@@ -137,37 +140,32 @@ func syncLocalMirror() error {
 		return fmt.Errorf("no enabled mirrors found in config '%s'", cfgPath)
 	}
 
-	defPrinter.info("Using '%s' as root directory.", rootDir)
+	defPrinter.putInfo("Using '%s' as root directory.", rootDir)
 	for midx, name := range enabledNames {
 		mirror := cfg.Mirrors[name]
 		for sidx, section := range mirror.Sections {
-			threads := mirror.Threads
-			if threads == 0 || threads > 8 {
-				defPrinter.error("Wrong amount of threads %d, reset to 1.", threads)
-				threads = 1
-			}
-			defPrinter.info(
-				"Syncing section '%s' (%d/%d), mirror '%s'@%s (th=%d) (%d/%d)...",
+			defPrinter.putInfo(
+				"Syncing section '%s' (%d/%d), mirror '%s'@%s (%d/%d)...",
 				section, sidx+1, len(mirror.Sections),
-				name, mirror.Arch, threads, midx+1, enabledCount,
+				name, mirror.Arch, midx+1, enabledCount,
 			)
-			if syncErr := syncSection(mirror.Uri, mirror.Arch, section, rootDir, threads); syncErr != nil {
+			if syncErr := syncSection(mirror.Uri, mirror.Arch, section, rootDir); syncErr != nil {
 				return syncErr
 			}
-			defPrinter.info("Syncing section '%s', mirror '%s': done.", section, name)
+			defPrinter.putInfo("Syncing section '%s', mirror '%s': done.", section, name)
 		}
 	}
 
 	if tsErr := mkLastUpdateStamp(rootDir); tsErr != nil {
 		return tsErr
 	}
-	defPrinter.info("Local packages synced successfully.")
+	defPrinter.putInfo("Local packages synced successfully.")
 	return nil
 }
 
 func main() {
 	if err := syncLocalMirror(); err != nil {
-		defPrinter.error("Unable to sync local packages: %s.", err)
+		defPrinter.putError("Unable to sync local packages: %s.", err)
 		os.Exit(1)
 	}
 }

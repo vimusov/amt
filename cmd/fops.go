@@ -60,7 +60,7 @@ func mkLastUpdateStamp(rootDir string) error {
 	}
 	defer func() {
 		if closeErr := tsFile.Close(); closeErr != nil {
-			defPrinter.error("Unable to close stamp file: %s.", closeErr)
+			defPrinter.putError("Unable to close stamp file: %s.", closeErr)
 		}
 	}()
 	_, writeErr := tsFile.WriteString(fmt.Sprintf("%s\n", time.Now().Format(time.UnixDate)))
@@ -94,7 +94,7 @@ func removeRedundantFiles(sectionDir, sectionName string, pkgs []pkgDesc) error 
 		}
 		path := info.Name()
 		if info.Mode().IsDir() {
-			defPrinter.error("'%s' is a directory.", path)
+			defPrinter.putError("'%s' is a directory.", path)
 			continue
 		}
 		name := filepath.Base(path)
@@ -111,15 +111,15 @@ func removeRedundantFiles(sectionDir, sectionName string, pkgs []pkgDesc) error 
 	if len(result) == 0 {
 		return nil
 	}
-	defPrinter.info("Removing redundant files...")
+	defPrinter.putInfo("Removing redundant files...")
 	sort.Strings(result)
 	for _, path := range result {
-		defPrinter.line("%s", path)
+		defPrinter.putLine("%s", path)
 		if rmErr := os.Remove(filepath.Join(sectionDir, path)); rmErr != nil {
-			defPrinter.error("Unable to remove redundant file: %s.", rmErr)
+			defPrinter.putError("Unable to remove redundant file: %s.", rmErr)
 		}
 	}
-	defPrinter.info("Cleanup completed.")
+	defPrinter.putInfo("Cleanup completed.")
 	return nil
 }
 
@@ -145,7 +145,7 @@ func fixupSymlinks(sectionDir, sectionName string) error {
 		if linkErr := os.Symlink(targetName, linkPath); linkErr != nil {
 			return linkErr
 		}
-		defPrinter.info("Symlink '%s' updated.", linkName)
+		defPrinter.putInfo("Symlink '%s' updated.", linkName)
 	}
 	return nil
 }

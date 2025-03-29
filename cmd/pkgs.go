@@ -17,14 +17,6 @@ type pkgDesc struct {
 	size   uint64
 }
 
-func namesFromDescs(descs []pkgDesc) []string {
-	result := make([]string, 0, len(descs))
-	for _, desc := range descs {
-		result = append(result, desc.name)
-	}
-	return result
-}
-
 func calcChkSum(path string) (string, error) {
 	pkgFile, openErr := os.Open(path)
 	if openErr != nil {
@@ -55,7 +47,7 @@ func getPkgsToUpdate(sectionDir string, allPkgs []pkgDesc) ([]pkgDesc, error) {
 	message := ""
 	result := make([]pkgDesc, 0)
 	if !defPrinter.isVerbose() {
-		defPrinter.info("%s...", prefix)
+		defPrinter.putInfo("%s...", prefix)
 	}
 	for idx, desc := range allPkgs {
 		message = fmt.Sprintf("\r%s: %d/%d", prefix, idx+1, total)
@@ -77,9 +69,9 @@ func getPkgsToUpdate(sectionDir string, allPkgs []pkgDesc) ([]pkgDesc, error) {
 	}
 	defPrinter.progress("\r" + strings.Repeat(" ", len(message)) + "\r")
 	if broken == 0 && missing == 0 {
-		defPrinter.line("%s: OK.", prefix)
+		defPrinter.putLine("%s: OK.", prefix)
 	} else {
-		defPrinter.line("%s: %d missing, %d broken.", prefix, missing, broken)
+		defPrinter.putLine("%s: %d missing, %d broken.", prefix, missing, broken)
 	}
 	return result, nil
 }
