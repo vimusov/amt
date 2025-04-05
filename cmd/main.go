@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -165,7 +166,7 @@ func syncLocalMirror() error {
 
 func main() {
 	if err := syncLocalMirror(); err != nil {
-		defPrinter.putError("Unable to sync local packages: %s.", err)
+		defPrinter.putError("Unable to sync local packages: %s.", errors.Unwrap(err))
 		os.Exit(1)
 	}
 }

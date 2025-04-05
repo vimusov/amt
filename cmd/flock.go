@@ -2,9 +2,9 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"golang.org/x/sys/unix"
 	"os"
-	"path/filepath"
 )
 
 var exeFile *os.File = nil
@@ -13,18 +13,18 @@ func lockSelf() error {
 	if exeFile != nil {
 		return unix.EWOULDBLOCK
 	}
-	path, absErr := filepath.Abs(os.Args[0])
-	if absErr != nil {
-		return absErr
+	path, exeErr := os.Executable()
+	if exeErr != nil {
+		return fmt.Errorf("failed to get executable path: %w", exeErr)
 	}
 	selfFile, openErr := os.OpenFile(path, os.O_RDONLY, 0444)
 	if openErr != nil {
-		return openErr
+		return fmt.Errorf("failed to open executable: %w", openErr)
 	}
 	lockErr := unix.Flock(int(selfFile.Fd()), unix.LOCK_EX|unix.LOCK_NB)
 	if lockErr != nil {
 		_ = selfFile.Close()
-		return lockErr
+		return fmt.Errorf("failed to lock executable: %w", lockErr)
 	}
 	exeFile = selfFile
 	return nil
