@@ -141,6 +141,7 @@ func syncLocalMirror() error {
 		return fmt.Errorf("no enabled mirrors found in config '%s'", cfgPath)
 	}
 
+	wasError := false
 	defPrinter.putInfo("Using '%s' as root directory.", rootDir)
 	for midx, name := range enabledNames {
 		mirror := cfg.Mirrors[name]
@@ -151,10 +152,15 @@ func syncLocalMirror() error {
 				name, mirror.Arch, midx+1, enabledCount,
 			)
 			if syncErr := syncSection(mirror.Uri, mirror.Arch, section, rootDir); syncErr != nil {
-				return syncErr
+				defPrinter.putError("Unable to sync section '%s': %s.", name, errors.Unwrap(syncErr))
+				wasError = true
+				continue
 			}
 			defPrinter.putInfo("Syncing section '%s', mirror '%s': done.", section, name)
 		}
+	}
+	if wasError {
+		return fmt.Errorf("one or more sections failed to sync")
 	}
 
 	if tsErr := mkLastUpdateStamp(rootDir); tsErr != nil {
