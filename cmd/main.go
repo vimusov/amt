@@ -171,8 +171,12 @@ func syncLocalMirror() error {
 }
 
 func main() {
-	if err := syncLocalMirror(); err != nil {
-		defPrinter.putError("Unable to sync local packages: %s.", errors.Unwrap(err))
+	if updateErr := syncLocalMirror(); updateErr != nil {
+		finalErr := errors.Unwrap(updateErr)
+		if finalErr == nil {
+			finalErr = updateErr
+		}
+		defPrinter.putError("Unable to sync local packages: %s.", finalErr)
 		os.Exit(1)
 	}
 }
